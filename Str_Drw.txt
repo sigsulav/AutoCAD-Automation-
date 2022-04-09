@@ -1,0 +1,692 @@
+from pyautocad import Autocad, APoint, aDouble
+import numpy as np
+
+print("\n\n******STRUCUTRAL DRAWING AUTOMATION \n\n")
+acad = Autocad()
+
+# input form user about grid number
+gridX = int(input("Enter number of grid along X:  "))
+gridY = int(input("\nEnter number of grid along Y:  "))
+
+spacingX = np.zeros(gridX - 1)
+spacingY = np.zeros(gridY - 1)
+
+# imput from user about grid spacing
+print("*****Along X direction*****")
+
+i = 0
+outer_dim = 0
+for i in range(gridX - 1):
+    spacingX[i] = int(input(f"Enter spacing between grid {i + 1} and grid {i + 2}:  "))
+    outer_dim = outer_dim + spacingX[i]
+
+print("\n\n*****Along Y direction*****")
+grid_alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+j = 0
+outer_dimy = 0
+for j in range(gridY - 1):
+    spacingY[j] = int(input(f"Enter spacing between grid {grid_alphabet[j]} and grid {grid_alphabet[j + 1]}:  "))
+    outer_dimy = outer_dimy + spacingX[i]
+coordinates = np.zeros((gridX * gridY, 2))
+
+# global coordinates preparation of grid
+j = 0
+spacingyy = 0
+while j < gridY:
+    spacingxx = 0
+    i = 0
+    while i < gridX:
+        coordinates[i + gridX * j, 0] = spacingxx
+        coordinates[i + gridX * j, 1] = spacingyy
+        if i == gridX - 1:
+            break
+        else:
+            spacingxx = spacingxx + spacingX[i]
+        i = i + 1
+    if j == gridY - 1:
+        break
+    else:
+        spacingyy = spacingyy + spacingY[j]
+    j = j + 1
+
+
+# grid drawing in AutoCAD with certain offset from origin
+def grid(offsetx, offsety):
+    grid_alphabets = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+    j = 0
+    while j < gridY:
+        p1 = APoint(coordinates[0, 0] - 2000 + offsetx, coordinates[j * gridX + 0, 1] + offsety)
+        p2 = APoint(coordinates[gridX - 1, 0] + 2000 + offsetx, coordinates[j * gridX + gridX - 1, 1] + offsety)
+        grid = acad.model.AddLine(p1, p2)
+        grid.layer = 'Main_Grid'
+        circle = acad.model.AddCircle(
+            APoint(coordinates[0, 0] - 2000 + offsetx - 175, coordinates[j * gridX + 0, 1] + offsety, 0), 175)
+        circle.layer = 'Grid_Numbering'
+        circle2 = acad.model.AddCircle(
+            APoint(coordinates[gridX - 1, 0] + 2000 + offsetx + 175, coordinates[j * gridX + gridX - 1, 1] + offsety,
+                   0), 175)
+        circle2.layer = 'Grid_Numbering'
+
+        text_point2 = APoint(coordinates[0, 0] - 2000 + offsetx - 200, coordinates[j * gridX + 0, 1] - 95 + offsety)
+        text2 = acad.model.AddText(f'{j + 1}', text_point2, 200)
+        text2.layer = 'Grid_Numbering'
+
+        text_point3 = APoint(coordinates[gridX - 1, 0] + 2000 + offsetx + 140,
+                             coordinates[j * gridX + gridX - 1, 1] - 95 + offsety)
+        text3 = acad.model.AddText(f'{j + 1}', text_point3, 200)
+        text3.layer = 'Grid_Numbering'
+        j = j + 1
+
+    i = 0
+    while i < gridX:
+        p1 = APoint(coordinates[i, 0] + offsetx, coordinates[i, 1] - 2000 + offsety)
+        p2 = APoint(coordinates[i + gridX, 0] + offsetx, coordinates[i + gridX * (gridY - 1), 1] + 2000 + offsety)
+        grid = acad.model.AddLine(p1, p2)
+        grid.layer = 'Main_Grid'
+        circle3 = acad.model.AddCircle(APoint(coordinates[i, 0] + offsetx, coordinates[i, 1] - 2000 - 175 + offsety, 0),
+                                       175)
+        circle3.layer = 'Grid_Numbering'
+        circle4 = acad.model.AddCircle(
+            APoint(coordinates[i + gridX, 0] + offsetx, coordinates[i + gridX * (gridY - 1), 1] + 2000 + 175 + offsety,
+                   0), 175)
+        circle4.layer = 'Grid_Numbering'
+
+        text_point4 = APoint(coordinates[i, 0] + offsetx - 65, coordinates[i, 1] - 2000 - 265 + offsety)
+        text4 = acad.model.AddText(grid_alphabets[i], text_point4, 200)
+        text4.layer = 'Grid_Numbering'
+
+        text_point5 = APoint(coordinates[i + gridX, 0] + offsetx - 65,
+                             coordinates[i + gridX * (gridY - 1), 1] + 2000 + 80 + offsety)
+        text5 = acad.model.AddText(grid_alphabets[i], text_point5, 200)
+        text5.layer = 'Grid_Numbering'
+
+        i = i + 1
+
+
+# column drawing in AutoCAD in each intersection point of grid
+def column(col_size, x_coord, y_coord):
+    pgonc = (x_coord - col_size / 2, y_coord - col_size / 2, 0, x_coord + col_size / 2, y_coord - col_size / 2, 0,
+             x_coord + col_size / 2, y_coord + col_size / 2, 0, x_coord - col_size / 2, y_coord + col_size / 2, 0,
+             x_coord - col_size / 2, y_coord - col_size / 2, 0)
+    pgont = tuple(pgonc)
+    polygon = aDouble(pgont)
+    polygond = acad.model.AddPolyline(polygon)
+    polygond.layer = 'Column_square'
+
+
+col_size = int(input("\n\nEnter square column size:"))
+
+
+# trench layout plan drawing
+def trench_layout_plan(col_size, coordinates):
+    offset = 0 * outer_dim
+    grid(offset, 0)
+    i = 0
+    # while i < gridX * gridY:
+    #     column(col_size, coordinates[i, 0] + offset, coordinates[i, 1])
+    #     i = i + 1
+
+    text_point = APoint(offset, -3000)
+    text = acad.model.AddText('TRENCH LAYOUT PLAN', text_point, 300)
+    text.layer = 'text'
+
+
+# footing layout plan drawing
+def footing_layout_plan(col_size, coordinates):
+    offset = 2 * outer_dim + 4000
+    grid(offset, 0)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset, coordinates[i, 1])
+        i = i + 1
+
+    text_point = APoint(offset, -3000)
+    text = acad.model.AddText('FOOTING LAYOUT PLAN', text_point, 300)
+    text.layer = 'text'
+
+
+# column layout plan drawing
+def column_layout_plan(col_size, coordinates):
+    offset = 4 * outer_dim + 4000
+    grid(offset, 0)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset, coordinates[i, 1])
+        i = i + 1
+    text_point = APoint(offset, -3000)
+    text = acad.model.AddText('COLUMN LAYOUT PLAN', text_point, 300)
+    text.layer = 'text'
+
+
+# lower tie beam plan drawing
+def lower_tie_beam(col_size, coordinates):
+    tiebeamwidth = int(input("\n\nEnter width of lower tie beam :"))
+    tiebeamdepth = int(input("\nEnter depth of lower tie beam :"))
+    offset_ltb = 6 * outer_dim + 4000
+    grid(offset_ltb, 0)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset_ltb, coordinates[i, 1])
+        i = i + 1
+    text_point = APoint(offset_ltb, -3000)
+    text = acad.model.AddText('LOWER TIE BEAM PLAN', text_point, 300)
+    text.layer = 'text'
+
+    text_point1 = APoint(offset_ltb, -3500)
+    text2 = acad.model.AddText(f'ALL LOWER TIE BEAMS ARE OF SIZE {tiebeamwidth} MM X {tiebeamdepth} MM', text_point1,
+                               200)
+    text2.layer = 'text'
+
+    i = 0
+    while i < gridX:
+        x1 = offset_ltb + coordinates[i, 0] - tiebeamwidth / 2
+        y1 = coordinates[i, 1] + col_size / 2
+        x2 = offset_ltb + coordinates[i, 0] + tiebeamwidth / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[i + gridX * gridY - gridX, 1] - col_size / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'LowerTieBeam'
+        i = i + 1
+
+    j = 0
+    while j < gridY:
+        x1 = offset_ltb + coordinates[j * gridX, 0] + col_size / 2
+        y1 = coordinates[j * gridX, 1] - tiebeamwidth / 2
+        x2 = offset_ltb + coordinates[j * gridX + gridX - 1, 0] - col_size / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[j * gridX + gridX - 1, 1] + tiebeamwidth / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'LowerTieBeam'
+        j = j + 1
+
+
+# plinth beam plan drawing
+def plinth_beam(col_size, coordinates):
+    plinthbeamwidth = int(input("\n\nEnter width of plinth beam :"))
+    plinthbeamdepth = int(input("\nEnter depth of plinth beam :"))
+    offset_pb = 8 * outer_dim + 4000
+    grid(offset_pb, 0)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset_pb, coordinates[i, 1])
+        i = i + 1
+    text_point = APoint(offset_pb, -3000)
+    text = acad.model.AddText('PLINTH BEAM PLAN', text_point, 300)
+    text.layer = 'text'
+
+    text_point1 = APoint(offset_pb, -3500)
+    text2 = acad.model.AddText(f'ALL PLINTH BEAMS ARE OF SIZE {plinthbeamwidth} MM X {plinthbeamdepth} MM', text_point1,
+                               200)
+    text2.layer = 'text'
+
+    i = 0
+    while i < gridX:
+        x1 = offset_pb + coordinates[i, 0] - plinthbeamwidth / 2
+        y1 = coordinates[i, 1] + col_size / 2
+        x2 = offset_pb + coordinates[i, 0] + plinthbeamwidth / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[i + gridX * gridY - gridX, 1] - col_size / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'PlinthBeam'
+        i = i + 1
+
+    j = 0
+    while j < gridY:
+        x1 = offset_pb + coordinates[j * gridX, 0] + col_size / 2
+        y1 = coordinates[j * gridX, 1] - plinthbeamwidth / 2
+        x2 = offset_pb + coordinates[j * gridX + gridX - 1, 0] - col_size / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[j * gridX + gridX - 1, 1] + plinthbeamwidth / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'PlinthBeam'
+        j = j + 1
+
+
+# main beam plan drawing
+def main_beam(col_size, coordinates, mainbeamwidth):
+    #mainbeamwidth = int(input("\n\nEnter width of main beam :"))
+    mainbeamdepth = int(input("\nEnter depth of main beam :"))
+    offset_mb = 10 * outer_dim + 4000
+    grid(offset_mb, 0)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset_mb, coordinates[i, 1])
+        i = i + 1
+    text_point = APoint(offset_mb, -3000)
+    text = acad.model.AddText('MAIN BEAM PLAN', text_point, 300)
+    text.layer = 'text'
+
+    text_point1 = APoint(offset_mb, -3500)
+    text2 = acad.model.AddText(f'ALL MAIN BEAMS ARE OF SIZE {mainbeamwidth} MM X {mainbeamdepth} MM', text_point1, 200)
+    text2.layer = 'text'
+
+    i = 0
+    while i < gridX:
+        x1 = offset_mb + coordinates[i, 0] - mainbeamwidth / 2
+        y1 = coordinates[i, 1] + col_size / 2
+        x2 = offset_mb + coordinates[i, 0] + mainbeamwidth / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[i + gridX * gridY - gridX, 1] - col_size / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        i = i + 1
+
+    j = 0
+    while j < gridY:
+        x1 = offset_mb + coordinates[j * gridX, 0] + col_size / 2
+        y1 = coordinates[j * gridX, 1] - mainbeamwidth / 2
+        x2 = offset_mb + coordinates[j * gridX + gridX - 1, 0] - col_size / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[j * gridX + gridX - 1, 1] + mainbeamwidth / 2
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        j = j + 1
+
+def top_slab_plan(col_size, coordinates, mainbeamwidth):
+    # mainbeamwidth = int(input("\n\nEnter width of main beam :"))
+    # mainbeamdepth = 400  # int(input("Enter depth of main beam :"))
+    slab_dia = 10
+    slab_spacing = 150
+    slab_thickness = 125
+    offset_slab = 10 * outer_dim + 4000
+    offset_slab_y = -1 * 3 * outer_dim
+    grid(offset_slab, offset_slab_y)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset_slab, coordinates[i, 1] + offset_slab_y)
+        i = i + 1
+    text_point = APoint(offset_slab, -3000 + offset_slab_y)
+    text = acad.model.AddText('FIRST FLOOR SLAB TOP REINFORCEMENT PLAN', text_point, 300)
+    text.layer = 'text'
+
+    text_point1 = APoint(offset_slab, -3500 + offset_slab_y)
+    text2 = acad.model.AddText(f'ALL REINFORCEMENT ARE OF {slab_dia} MM DIA - @ {slab_spacing} MM C/C', text_point1,
+                               200)
+    text2.layer = 'text'
+
+    text_point2 = APoint(offset_slab, -4000 + offset_slab_y)
+    text3 = acad.model.AddText(f'MAIN SLAB: {slab_thickness} MM THICK', text_point2, 200)
+    text3.layer = 'text'
+
+    i = 0
+    while i < gridX:
+        x1 = offset_slab + coordinates[i, 0] - mainbeamwidth / 2
+        y1 = coordinates[i, 1] + col_size / 2 + offset_slab_y
+        x2 = offset_slab + coordinates[i, 0] + mainbeamwidth / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[i + gridX * gridY - gridX, 1] - col_size / 2 + offset_slab_y
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        i = i + 1
+
+    j = 0
+    while j < gridY:
+        x1 = offset_slab + coordinates[j * gridX, 0] + col_size / 2
+        y1 = coordinates[j * gridX, 1] - mainbeamwidth / 2 + offset_slab_y
+        x2 = offset_slab + coordinates[j * gridX + gridX - 1, 0] - col_size / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[j * gridX + gridX - 1, 1] + mainbeamwidth / 2 + offset_slab_y
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        j = j + 1
+
+    i = -1
+    while i < 2:
+        j = 0
+        while j < gridY - 1:
+            xx1 = coordinates[0, 0] + offset_slab
+            yy1 = (coordinates[j * gridX + 0, 1] + offset_slab_y + coordinates[(j + 1) * gridX + 0, 1] + offset_slab_y) / 2 + i * 75
+            xx2 = coordinates[gridX - 1, 0] + offset_slab
+            yy2 = (coordinates[j * gridX + gridX - 1, 1] + offset_slab_y + coordinates[
+                (j + 1) * gridX + gridX - 1, 1] + offset_slab_y) / 2 + i * 75
+
+            p1 = APoint(xx1, yy1)
+            p2 = APoint(xx2, yy2)
+            slab_linex = acad.model.AddLine(p1, p2)
+            slab_linex.layer = 'slab'
+            j = j + 1
+        i = i + 1
+
+    j = -1
+    while j < 2:
+        i = 0
+        while i < gridX - 1:
+            xx1 = (coordinates[i, 0] + offset_slab + coordinates[i + 1, 0] + offset_slab) / 2 + j * 75
+            yy1 = coordinates[i, 1] + offset_slab_y
+            xx2 = (coordinates[i + gridX, 0] + offset_slab + coordinates[i + 1 + gridX, 0] + offset_slab) / 2 + j * 75
+            yy2 = coordinates[i + gridX * (gridY - 1), 1] + offset_slab_y
+            p1 = APoint(xx1, yy1)
+            p2 = APoint(xx2, yy2)
+            slab_liney = acad.model.AddLine(p1, p2)
+            slab_liney.layer = 'slab'
+            i = i + 1
+        j = j + 1
+
+def bottom_slab_plan(col_size, coordinates, mainbeamwidth):
+    # mainbeamwidth = int(input("\n\nEnter width of main beam :"))
+    # mainbeamdepth = 400  # int(input("Enter depth of main beam :"))
+    slab_dia = 10
+    slab_spacing = 150
+    slab_thickness = 125
+    offset_slab = 14 * outer_dim + 4000
+    offset_slab_y = -1 * 3 * outer_dim
+    grid(offset_slab, offset_slab_y)
+    i = 0
+    while i < gridX * gridY:
+        column(col_size, coordinates[i, 0] + offset_slab, coordinates[i, 1] + offset_slab_y)
+        i = i + 1
+    text_point = APoint(offset_slab, -3000 + offset_slab_y)
+    text = acad.model.AddText('FIRST FLOOR SLAB BOTTOM REINFORCEMENT PLAN', text_point, 300)
+    text.layer = 'text'
+
+    text_point1 = APoint(offset_slab, -3500 + offset_slab_y)
+    text2 = acad.model.AddText(f'ALL REINFORCEMENT ARE OF {slab_dia} MM DIA - @ {slab_spacing} MM C/C', text_point1,
+                               200)
+    text2.layer = 'text'
+
+    text_point2 = APoint(offset_slab, -4000 + offset_slab_y)
+    text3 = acad.model.AddText(f'MAIN SLAB: {slab_thickness} MM THICK', text_point2, 200)
+    text3.layer = 'text'
+
+    i = 0
+    while i < gridX:
+        x1 = offset_slab + coordinates[i, 0] - mainbeamwidth / 2
+        y1 = coordinates[i, 1] + col_size / 2 + offset_slab_y
+        x2 = offset_slab + coordinates[i, 0] + mainbeamwidth / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[i + gridX * gridY - gridX, 1] - col_size / 2 + offset_slab_y
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        i = i + 1
+
+    j = 0
+    while j < gridY:
+        x1 = offset_slab + coordinates[j * gridX, 0] + col_size / 2
+        y1 = coordinates[j * gridX, 1] - mainbeamwidth / 2 + offset_slab_y
+        x2 = offset_slab + coordinates[j * gridX + gridX - 1, 0] - col_size / 2
+        y2 = y1
+        x3 = x2
+        y3 = coordinates[j * gridX + gridX - 1, 1] + mainbeamwidth / 2 + offset_slab_y
+        x4 = x1
+        y4 = y3
+
+        pgonc = (x1, y1, 0, x2, y2, 0, x3, y3, 0, x4, y4, 0, x1, y1, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'MainBeam'
+        j = j + 1
+
+
+    i = -1
+    while i < 2:
+        j = 0
+        while j < gridY - 1:
+            xx1 = coordinates[0, 0] + offset_slab
+            yy1 = (coordinates[j * gridX + 0, 1] + offset_slab_y + coordinates[(j + 1) * gridX + 0, 1] + offset_slab_y) / 2 + i * 75
+            xx2 = coordinates[gridX - 1, 0] + offset_slab
+            yy2 = (coordinates[j * gridX + gridX - 1, 1] + offset_slab_y + coordinates[
+                (j + 1) * gridX + gridX - 1, 1] + offset_slab_y) / 2 + i * 75
+
+            p1 = APoint(xx1, yy1)
+            p2 = APoint(xx2, yy2)
+            slab_linex = acad.model.AddLine(p1, p2)
+            slab_linex.layer = 'slab'
+            j = j + 1
+        i = i + 1
+
+
+    j = -1
+    while j < 2:
+        i = 0
+        while i < gridX - 1:
+            xx1 = (coordinates[i, 0] + offset_slab + coordinates[i + 1, 0] + offset_slab) / 2 + j * 75
+            yy1 = coordinates[i, 1] + offset_slab_y
+            xx2 = (coordinates[i + gridX, 0] + offset_slab + coordinates[i + 1 + gridX, 0] + offset_slab) / 2 + j * 75
+            yy2 = coordinates[i + gridX * (gridY - 1), 1] + offset_slab_y
+            p1 = APoint(xx1, yy1)
+            p2 = APoint(xx2, yy2)
+            slab_liney = acad.model.AddLine(p1, p2)
+            slab_liney.layer = 'slab'
+            i = i + 1
+        j = j + 1
+
+def footing_plan_and_section(col_size, x_coord, y_coord):
+    footing_number = int(input("\n\nEnter number of square footing:"))
+
+    # plan of footing
+    i = 0
+    while i < footing_number:
+        footing_size = int(input(f"\n\nEnter length/width of square footing F{i+1} (mm):"))
+        pgonc = (x_coord + (i * 10000) - footing_size / 2, y_coord - footing_size / 2, 0, x_coord + (i * 10000) + footing_size / 2,
+                 y_coord - footing_size / 2, 0,
+                 x_coord + (i * 10000) + footing_size / 2, y_coord + footing_size / 2, 0, x_coord + (i * 10000) - footing_size / 2,
+                 y_coord + footing_size / 2, 0,
+                 x_coord + (i * 10000)- footing_size / 2, y_coord - footing_size / 2, 0)
+        pgont = tuple(pgonc)
+        polygon = aDouble(pgont)
+        polygond = acad.model.AddPolyline(polygon)
+        polygond.layer = 'Footing_square'
+
+        pgonc2 = (
+        x_coord - footing_size / 2 + (i * 10000) - 100, y_coord - footing_size / 2 - 100, 0, x_coord + (i * 10000) + footing_size / 2 + 100,
+        y_coord - footing_size / 2 - 100, 0,
+        x_coord + footing_size / 2 + (i * 10000) + 100, y_coord + footing_size / 2 + 100, 0, x_coord + (i * 10000) - footing_size / 2 - 100,
+        y_coord + footing_size / 2 + 100, 0,
+        x_coord - footing_size / 2 + (i * 10000) - 100, y_coord - footing_size / 2 - 100, 0)
+        pgont2 = tuple(pgonc2)
+        polygon2 = aDouble(pgont2)
+        polygond2 = acad.model.AddPolyline(polygon2)
+        polygond2.layer = 'Footing_square2'
+
+        column(col_size, x_coord + (i * 10000), y_coord)
+
+        p1 = APoint(x_coord + (i * 10000) - footing_size / 2 - 1500, y_coord)
+        p2 = APoint(x_coord + (i * 10000) + footing_size / 2 + 1500, y_coord)
+        grid = acad.model.AddLine(p1, p2)
+        grid.layer = 'Section_AA'
+
+        circle1 = acad.model.AddCircle(
+            APoint(x_coord + (i * 10000) - footing_size / 2 - 1500 - 175, y_coord + 175, 0), 175)
+        circle1.layer = 'Grid_Numbering'
+
+        text_point15 = APoint(x_coord + (i * 10000) - footing_size / 2 - 1500 - 230, y_coord + 60)
+        text15 = acad.model.AddText('X', text_point15, 200)
+        text15.layer = 'Grid_Numbering'
+
+        circle2 = acad.model.AddCircle(
+            APoint(x_coord + (i * 10000) + footing_size / 2 + 1500 + 175, y_coord + 175, 0), 175)
+        circle2.layer = 'Grid_Numbering'
+
+        text_point15 = APoint(x_coord + (i * 10000) + footing_size / 2 + 1500 + 100, y_coord + 60)
+        text15 = acad.model.AddText('X', text_point15, 200)
+        text15.layer = 'Grid_Numbering'
+
+        text_point16 = APoint(x_coord + (i * 10000) - footing_size / 2, y_coord - footing_size / 2 - 800)
+        text16 = acad.model.AddText(f'FOOTING PLAN F{i+1} {footing_size} X {footing_size}', text_point16, 120)
+        text16.layer = 'text'
+
+        text_point17 = APoint(x_coord + (i * 10000) - footing_size / 2, y_coord - footing_size / 2 - 150 - 800)
+        text17 = acad.model.AddText('SCALE:- 1:40', text_point17, 80)
+        text17.layer = 'text'
+
+
+        # section of footing
+        footing_thickness = int(input(f"\n\nEnter thickness of square footing F{i + 1} (mm):"))
+        # footing thickness
+        pgonc3 = (x_coord + (i * 10000) - footing_size / 2, y_coord + 6000, 0, x_coord + (i * 10000) + footing_size / 2,
+                 y_coord + 6000, 0,
+                 x_coord + (i * 10000) + footing_size / 2, y_coord + 6000 + footing_thickness, 0, x_coord + (i * 10000) - footing_size / 2,
+                 y_coord + 6000 + footing_thickness, 0,
+                 x_coord + (i * 10000)- footing_size / 2, y_coord + 6000, 0)
+        pgont3 = tuple(pgonc3)
+        polygon3 = aDouble(pgont3)
+        polygond3 = acad.model.AddPolyline(polygon3)
+        polygond3.layer = 'Footing_square'
+
+        #75mm PCC thickness
+        pgonc4 = (x_coord + (i * 10000) - footing_size / 2 - 100, y_coord + 6000 - 75, 0, x_coord + (i * 10000) + footing_size / 2 + 100,
+                 y_coord + 6000 - 75, 0,
+                 x_coord + (i * 10000) + footing_size / 2 + 100, y_coord + 6000, 0, x_coord + (i * 10000) - footing_size / 2 - 100,
+                 y_coord + 6000, 0,
+                 x_coord + (i * 10000)- footing_size / 2 - 100, y_coord + 6000 - 75, 0)
+        pgont4 = tuple(pgonc4)
+        polygon4 = aDouble(pgont4)
+        polygond4 = acad.model.AddPolyline(polygon4)
+        polygond4.layer = 'Footing_square2'
+        text_point18 = APoint(x_coord + (i * 10000) + footing_size / 2 + 100 + 200, y_coord + 6000 - 75)
+        text18 = acad.model.AddText('75 mm THICK PCC (1:3:6)', text_point18, 80)
+        text18.layer = 'text'
+
+
+        pgonc5 = (x_coord + (i * 10000) - footing_size / 2 - 100, y_coord + 6000 - 75 - 150, 0, x_coord + (i * 10000) + footing_size / 2 + 100,
+                 y_coord + 6000 - 75 - 150, 0,
+                 x_coord + (i * 10000) + footing_size / 2 + 100, y_coord + 6000 - 75, 0, x_coord + (i * 10000) - footing_size / 2 - 100,
+                 y_coord + 6000 - 75, 0,
+                 x_coord + (i * 10000)- footing_size / 2 - 100, y_coord + 6000 - 75 - 150, 0)
+        pgont5 = tuple(pgonc5)
+        polygon5 = aDouble(pgont5)
+        polygond5 = acad.model.AddPolyline(polygon5)
+        polygond5.layer = 'Footing_square2'
+        text_point19 = APoint(x_coord + (i * 10000) + footing_size / 2 + 100 + 200, y_coord + 6000 - 75 - 150)
+        text19 = acad.model.AddText('150 mm THICK STONE SOLING (1:3:6)', text_point19, 80)
+        text19.layer = 'text'
+
+        # column draw
+        pgonc6 = (x_coord + (i * 10000) - col_size / 2, y_coord + 6000 + footing_thickness, 0, x_coord + (i * 10000) + col_size / 2,
+                 y_coord + 6000 + footing_thickness, 0,
+                 x_coord + (i * 10000) + col_size / 2, y_coord + 6000 + 3000, 0, x_coord + (i * 10000) - col_size / 2,
+                 y_coord + 6000 + 3000, 0,
+                 x_coord + (i * 10000)- col_size / 2, y_coord + 6000 + footing_thickness, 0)
+        pgonc6 = tuple(pgonc6)
+        polygon6 = aDouble(pgonc6)
+        polygond6 = acad.model.AddPolyline(polygon6)
+        polygond6.layer = 'Column_square'
+
+        # reinforcement of column draw
+        pgonc7 = (x_coord + (i * 10000) - col_size / 2 + 40, y_coord + 6000 + 80, 0, x_coord + (i * 10000) + col_size / 2 - 40,
+                 y_coord + 6000 + 80, 0,
+                 x_coord + (i * 10000) + col_size / 2 - 40, y_coord + 6000 + 3000, 0, x_coord + (i * 10000) - col_size / 2 + 40,
+                 y_coord + 6000 + 3000, 0,
+                 x_coord + (i * 10000)- col_size / 2 + 40, y_coord + 6000 + 80, 0)
+        pgonc7 = tuple(pgonc7)
+        polygon7 = aDouble(pgonc7)
+        polygond7 = acad.model.AddPolyline(polygon7)
+        polygond7.layer = 'Str_rebar'
+
+        p3 = APoint(x_coord + (i * 10000) - footing_size / 2 + 50, y_coord + 6000 + 50)
+        p4 = APoint(x_coord + (i * 10000) + footing_size / 2 - 50, y_coord + 6000 + 50)
+        grid2 = acad.model.AddLine(p3, p4)
+        grid2.layer = 'Str_rebar'
+        p5 = APoint(x_coord + (i * 10000) - 400, y_coord + 6000 + 80)
+        p6 = APoint(x_coord + (i * 10000) + 400, y_coord + 6000 + 80)
+        grid3 = acad.model.AddLine(p5, p6)
+        grid3.layer = 'Str_rebar'
+
+        p7 = APoint(x_coord + (i * 10000) - footing_size / 2 + 50, y_coord + 6000 + 50)
+        p8 = APoint(x_coord + (i * 10000) - footing_size / 2 + 50, y_coord + 6000 + 50 + 50)
+        grid4 = acad.model.AddLine(p7, p8)
+        grid4.layer = 'Str_rebar'
+        p9 = APoint(x_coord + (i * 10000) - 400, y_coord + 6000 + 80)
+        p10 = APoint(x_coord + (i * 10000)- 400, y_coord + 6000 + 80 + 50)
+        grid5 = acad.model.AddLine(p9, p10)
+        grid5.layer = 'Str_rebar'
+
+        p11 = APoint(x_coord + (i * 10000) + footing_size / 2 - 50, y_coord + 6000 + 50)
+        p12 = APoint(x_coord + (i * 10000) + footing_size / 2 - 50, y_coord + 6000 + 50 + 50)
+        grid6 = acad.model.AddLine(p11, p12)
+        grid6.layer = 'Str_rebar'
+        p13 = APoint(x_coord + (i * 10000) + 400, y_coord + 6000 + 80)
+        p14 = APoint(x_coord + (i * 10000) + 400, y_coord + 6000 + 80 + 50)
+        grid7 = acad.model.AddLine(p13, p14)
+        grid7.layer = 'Str_rebar'
+
+        text_point18 = APoint(x_coord + (i * 10000) - footing_size / 2, y_coord + 6000 - 800)
+        text18 = acad.model.AddText(f'FOOTING F{i+1} SECTION AT X-X', text_point18, 120)
+        text18.layer = 'text'
+
+        i = i + 1
+
+trench_layout_plan(col_size, coordinates)
+footing_layout_plan(col_size, coordinates)
+column_layout_plan(col_size, coordinates)
+lower_tie_beam(col_size, coordinates)
+plinth_beam(col_size, coordinates)
+mainbeamwidth = int(input("\n\nEnter width of main beam:"))
+main_beam(col_size, coordinates, mainbeamwidth)
+top_slab_plan(col_size, coordinates, mainbeamwidth)
+bottom_slab_plan(col_size, coordinates, mainbeamwidth)
+footing_plan_and_section(col_size, 0, outer_dimy * 2 + 8000)
+
+print("Outer dimension value for shifting the beam section: ", 15 * outer_dim)
+
+print("\n\n***For Beam Section Drawing:***")
+import Beam_Section
+
+print('')
+print('**********************')
+print('')
+print("***Drawing has been created. Check AutoCAD***")
